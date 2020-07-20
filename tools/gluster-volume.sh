@@ -26,3 +26,4 @@ if [ $error == false ]; then
     docker volume create --name $volume_name --driver glusterfs
 fi
 
+#sudo mount.glusterfs localhost:/$volume_name1 /mnt/$volume_name
