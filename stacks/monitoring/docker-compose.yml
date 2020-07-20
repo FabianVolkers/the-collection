@@ -1,0 +1,111 @@
+version: '3.3'
+
+services:
+
+  grafana:
+    image: grafana/grafana
+    restart: always
+    ports:
+      - "3000"
+    networks:
+      - traefik-public
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - /mnt/grafana/provisioning:/etc/grafana/provisioning
+      - /mnt/grafana/dashboards:/var/lib/grafana/dashboards
+    secrets:
+      - email_contact_address
+      - email_host_and_port
+      - email_host_password
+      - email_host_user
+    environment: 
+      - GF_SERVER_ROOT_URL=https://grafana.fabianvolkers.com
+      - GF_SMTP_ENABLED=true
+      - GF_SMTP_HOST__FILE=/var/run/secrets/email_host_and_port
+      - GF_SMTP_USER__FILE=/var/run/secrets/email_host_user
+      - GF_SMTP_PASSWORD__FILE=/var/run/secrets/email_host_password
+      - GF_SMTP_FROM_ADDRESS=grafana@fabianvolkers.com
+      - GF_SMTP_STARTTLS_POLICY=MandatoryStartTLS
+      #- GF_AUTH_GENERIC_OAUTH_ENABLED=true
+      #- GF_AUTH_GENERIC_OAUTH_CLIENT_ID=grafana
+      #- GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET=grafana-secret
+      #- GF_AUTH_GENERIC_OAUTH_SCOPES=openid profile email
+      #- GF_AUTH_GENERIC_OAUTH_AUTH_URL=https://login.fabianvolkers.com/oauth2/auth
+      #- GF_AUTH_GENERIC_OAUTH_TOKEN_URL=https://login.fabianvolkers.com/oauth2/token
+      #- GF_AUTH_GENERIC_OAUTH_API_URL=https://login.fabianvolkers.com/userinfo
+      #- GF_AUTH_GENERIC_OAUTH_ALLOWED_DOMAINS=fabianvolkers.com
+      #- GF_AUTH_GENERIC_OAUTH_ALLOW_SIGN_UP=false
+    deploy:
+      mode: replicated
+      replicas: 1
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.grafana-http.rule=Host(`grafana.fabianvolkers.com`)"
+        - "traefik.http.routers.grafana-http.entrypoints=web"
+        - "traefik.http.routers.grafana-http.middlewares=redirect-web-to-websecure@internal"
+        - "traefik.http.routers.grafana-https.rule=Host(`grafana.fabianvolkers.com`)"
+        - "traefik.http.routers.grafana-https.entrypoints=websecure"
+        - "traefik.http.routers.grafana-https.tls=true"
+        - "traefik.http.routers.grafana-https.service=grafana"
+        - "traefik.http.routers.grafana-https.tls.certresolver=le"
+        - "traefik.http.services.grafana.loadbalancer.server.port=3000"
+
+  
+  prometheus:
+    image: prom/prometheus
+    restart: always
+    ports:
+      - "9090"
+    networks:
+      - traefik-public
+    volumes:
+      - /mnt/prometheus/:/etc/prometheus/
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      resources:
+        limits:
+          memory: 2048M
+        reservations:
+          memory: 128M
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.prometheus-http.rule=Host(`prometheus.fabianvolkers.com`)"
+        - "traefik.http.routers.prometheus-http.entrypoints=web"
+        - "traefik.http.routers.prometheus-http.middlewares=redirect-web-to-websecure@internal"
+        - "traefik.http.routers.prometheus-https.rule=Host(`prometheus.fabianvolkers.com`)"
+        - "traefik.http.routers.prometheus-https.entrypoints=websecure"
+        - "traefik.http.routers.prometheus-https.tls=true"
+        - "traefik.http.routers.prometheus-https.service=prometheus"
+        - "traefik.http.routers.prometheus-https.tls.certresolver=le"
+        - "traefik.http.services.prometheus.loadbalancer.server.port=9090"
+
+secrets:
+  email_contact_address:
+    external: true
+  email_host_and_port:
+    external: true
+  email_host_password:
+    external: true
+  email_host_user:
+    external: true
+
+volumes:
+  prometheus_data:
+  grafana_data:
+    
+
+
+networks:
+  traefik-public:
+    external: true
+    
+
+
